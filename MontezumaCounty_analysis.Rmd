@@ -1,0 +1,173 @@
+---
+title: "COVID-19 Analysis"
+author: "LDL Anderegg"
+date: "4/7/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(ggplot2)
+require(dplyr)
+require(stringr)
+require(RColorBrewer)
+require(zoo)
+mypal <- brewer.pal(n=9, "Set1")
+```
+
+```{r import data}
+county <- read.csv("~/Dropbox/covid-19-data/us-counties.csv")
+county$date <- base::as.Date(county$date)
+county$state.county <- paste(county$state, county$county, sep=".")
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r plots, echo=FALSE}
+plot(cases~date, county, pch=16, cex=.5, log="y")
+points(cases~date, county[grep("Montezuma", county$county), ], pch=3, col="red")
+legend("topleft", legend=c("all counties", "Montezuma County"), pch=c(16, 3), pt.cex=c(.5,1), col=c("black","red"))
+```
+
+If we pull out all counties where a death was one of the first 20 cases reported
+``` {r find similar counties}
+bad.counties <- unique(county$state.county[which(county$cases<= 10 & county$deaths>1)])
+
+# plot(cases~date, county, pch=16, cex=.5, log="y")
+# points(cases~date, county[grep("Montezuma", county$county), ], pch=3, col="red")
+# legend("topleft", legend=c("all counties", "Montezuma County"), pch=c(16, 3), pt.cex=c(.5,1), col=c("black","red"))
+# points(cases~date, county[which(county$county %in% bad.counties),], pch=16, cex=.6, col=county)
+# 
+# ggplot(county, aes(x=date, y=log(cases, base=10), col=state.county)) + geom_line() + theme(legend.position="none") + geom_point(data=county[grep("Montezuma", county$county),], col="black")
+# 
+# ggplot(county[which(county$cases>3 & !county$state.county %in% bad.counties),],  aes(x=date, y=log(cases, base=10), col=state.county)) + geom_line() + theme(legend.position="none")
+# 
+# ggplot(county[which(county$cases>3 & county$state.county %in% bad.counties),],  aes(x=date, y=log(cases, base=10), col=state.county)) + geom_line() + theme(legend.position="none")
+
+
+
+```
+
+
+
+``` {r transform to date of first 3 cases, warning=FALSE, echo=F}
+tmp <- county %>% group_by(state.county) %>% mutate(
+  new.cases = c(NA,diff(cases, differences=1))
+  , new.deaths = c(NA,diff(deaths, differences=1))
+  , min.cases = min(cases[which(new.cases>0)], na.rm=T)
+  , min.deaths=min(deaths[which(new.deaths>0)],na.rm=T)
+  , first.case = min(date[which(new.cases>0)], na.rm=T)
+  , first.death = min(date[which(new.deaths>0)], na.rm=T)
+  , max.cases=max(cases)
+  , max.deaths=max(deaths)
+  , new.cases.4avg =rollmean(new.cases, 4, fill=NA, align="right")
+  , new.deaths.4avg = rollmean(new.deaths,4, fill=NA, align="right")) %>% arrange(state.county)
+tmp$min.cases[which(tmp$min.cases==Inf)] <- NA
+tmp$min.deaths[which(tmp$min.deaths==Inf)] <- NA
+tmp$first.case[which(tmp$first.case==Inf)] <- NA
+tmp$first.death[which(tmp$first.death==Inf)] <- NA
+
+growing <- tmp[which(tmp$date> tmp$first.case),]
+growing$time.since.first <- growing$date - growing$first.case
+countysums <- growing[which(growing$max.cases>=10),] %>% group_by(state,state.county, county, max.cases, max.deaths) %>% summarise( time.to.50 = min(time.since.first[which(cases>= 50)]), time.to.10 = min(time.since.first[which(cases>= 10)]), time.to.10.deaths = min(time.since.first[which(deaths>= 10)]) )
+countysums$early.deaths <- "no"
+countysums$early.deaths[which(countysums$state.county %in% bad.counties)] <- "yes"
+countysums$early.deaths <- factor(countysums$early.deaths)
+countysums$time.to.10[which(countysums$time.to.10==Inf)] <- NA
+countysums$time.to.50[which(countysums$time.to.50==Inf)] <- NA
+countysums$time.to.10.deaths[which(countysums$time.to.10.deaths==Inf)] <- NA
+
+countysums %>% group_by(early.deaths) %>% summarise(mean.time.to.10 = mean(time.to.10, na.rm = T), median.time.to.10 = median(time.to.10, na.rm = T),mean.time.to.50 = mean(time.to.50, na.rm = T))
+
+plot(cases~time.since.first, growing, log="y")
+points(cases~time.since.first, growing[which(growing$state.county %in% bad.counties),], pch=16, col="darkred", cex=.5)
+points(cases~time.since.first, growing[grep("Montezuma", growing$county),], pch=15, col="red", cex=1)
+
+```
+
+
+
+``` {r final plots, warning=F, echo=F}
+
+plot(cases~date, county, type="n", log="y")
+for(i in unique(county$state.county[which(!county$state.county %in% bad.counties)])){
+  lines(cases~date, county[which(county$state.county==i),], col="#AAAAAA66")
+}
+for(i in unique(county$state.county[which(county$state.county %in% bad.counties)])){
+  lines(cases~date, county[which(county$state.county==i),], col=mypal[1])
+}
+points(cases~date, county[which(county$county=="Montezuma"),], pch=3, lwd=2, type="b")
+lines(cases~date, county[which(county$county=="Santa Clara"),], col=mypal[3], lwd=2)
+lines(cases~date, county[which(county$county=="Mesa"),], col=mypal[2], lwd=2)
+legend('topleft', legend=c("all counties","early deaths","Montezuma","Mesa","Santa Clara"), lwd=c(1,1,2,2,2), pch=c(NA,NA,3,NA,NA), col=c("#AAAAAA66", mypal[1],"black", mypal[2:3]))
+
+
+
+
+
+```
+
+
+``` {r cumulative plot, warning=F, echo=F}
+
+plot(new.cases~cases, growing, type="n", log="xy",xlab="total cases", ylab="new cases")
+for(i in unique(growing$state.county[which(!growing$state.county %in% bad.counties)])){
+  lines(new.cases~cases, growing[which(growing$state.county==i),], col="#AAAAAA66")
+}
+for(i in unique(growing$state.county[which(growing$state.county %in% bad.counties)])){
+  lines(new.cases~cases, growing[which(growing$state.county==i),], col=mypal[1])
+}
+points(new.cases~cases, growing[which(growing$county=="Montezuma"),], pch=3, lwd=2, type="b")
+lines(new.cases~cases, growing[which(growing$county=="Santa Clara"),], col=mypal[3], lwd=2)
+lines(new.cases~cases, growing[which(growing$county=="Mesa"),], col=mypal[2], lwd=2)
+legend('topleft', legend=c("all counties","early deaths","Montezuma","Mesa","Santa Clara"), lwd=c(1,1,2,2,2), pch=c(NA,NA,3,NA,NA), col=c("#AAAAAA66", mypal[1],"black", mypal[2:3]))
+
+
+plot(new.deaths~deaths, growing, type="n", log="xy", xlab="total deaths", ylab="new deaths")
+for(i in unique(growing$state.county[which(!growing$state.county %in% bad.counties)])){
+  lines(new.deaths~deaths, growing[which(growing$state.county==i),], col="#AAAAAA66")
+}
+for(i in unique(growing$state.county[which(growing$state.county %in% bad.counties)])){
+  lines(new.deaths~deaths, growing[which(growing$state.county==i),], col=mypal[1])
+}
+points(new.deaths~deaths, growing[which(growing$county=="Montezuma"),], pch=3, lwd=2, type="b")
+lines(new.deaths~deaths, growing[which(growing$county=="Santa Clara"),], col=mypal[3], lwd=2)
+lines(new.deaths~deaths, growing[which(growing$county=="Mesa"),], col=mypal[2], lwd=2)
+legend('topleft', legend=c("all counties","early deaths","Montezuma","Mesa","Santa Clara"), lwd=c(1,1,2,2,2), pch=c(NA,NA,3,NA,NA), col=c("#AAAAAA66", mypal[1],"black", mypal[2:3]))
+
+```
+
+
+
+``` {r curves, warning=FALSE, echo=FALSE}
+plot(new.cases~date, growing, type="n",log="y")
+for(i in unique(growing$state.county[which(!growing$state.county %in% bad.counties)])){
+  lines(new.cases~date, growing[which(growing$state.county==i),], col="#AAAAAA66")
+}
+for(i in unique(growing$state.county[which(growing$state.county %in% bad.counties)])){
+  lines(new.cases~date ,growing[which(growing$state.county==i),], col=mypal[1])
+}
+points(new.cases~date ,growing[which(growing$county=="Montezuma"),], pch=3, lwd=2, type="b")
+lines(new.cases~date, growing[which(growing$county=="Santa Clara"),], col=mypal[3], lwd=2)
+lines(new.cases~date, growing[which(growing$county=="Mesa"),], col=mypal[2], lwd=2)
+legend('topleft', legend=c("all counties","early deaths","Montezuma","Mesa","Santa Clara"), lwd=c(1,1,2,2,2), pch=c(NA,NA,3,NA,NA), col=c("#AAAAAA66", mypal[1],"black", mypal[2:3]))
+
+
+
+
+plot(new.cases.4avg~date, growing, type="n",log="y", ylab="4 day avg new cases")
+for(i in unique(growing$state.county[which(!growing$state.county %in% bad.counties)])){
+  lines(new.cases.4avg~date, growing[which(growing$state.county==i),], col="#AAAAAA66")
+}
+for(i in unique(growing$state.county[which(growing$state.county %in% bad.counties)])){
+  lines(new.cases.4avg~date ,growing[which(growing$state.county==i),], col=mypal[1])
+}
+points(new.cases.4avg~date ,growing[which(growing$county=="Montezuma"),], pch=3, lwd=2, type="b")
+lines(new.cases.4avg~date, growing[which(growing$county=="Santa Clara"),], col=mypal[3], lwd=2)
+lines(new.cases.4avg~date, growing[which(growing$county=="Mesa"),], col=mypal[2], lwd=2)
+legend('topleft', legend=c("all counties","early deaths","Montezuma","Mesa","Santa Clara"), lwd=c(1,1,2,2,2), pch=c(NA,NA,3,NA,NA), col=c("#AAAAAA66", mypal[1],"black", mypal[2:3]))
+
+```
