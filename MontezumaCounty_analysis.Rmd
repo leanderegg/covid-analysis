@@ -6,7 +6,7 @@ output: html_document
 ---
 
 Figures made from NYT county-level and state-level aggregated data
-Most recent data: 04/06/2020
+Most recent data: 04/08/2020
 
 
 ```{r setup, include=FALSE}
@@ -16,7 +16,7 @@ require(dplyr)
 require(stringr)
 require(RColorBrewer)
 require(zoo)
-mypal <- brewer.pal(n=9, "Set1")
+mypal <- c(brewer.pal(n=9, "Set1"), brewer.pal(n=8, "Dark2"))
 ```
 
 ```{r import data}
@@ -39,7 +39,7 @@ NYC dwarfs pretty much everywhere in raw number of cases. It goes waaaaay of the
 ``` {r find similar counties, include=F}
 bad.counties <- unique(county$state.county[which(county$cases<= 10 & county$deaths>1)])
 
-my.counties <- c("Colorado.Mesa", "California.Santa Clara", "Colorado.La Plata", "Oregon.Lane", "California.San Mateo")
+my.counties <- c("Colorado.Mesa", "California.Santa Clara", "Colorado.La Plata", "Oregon.Lane", "California.San Mateo", "Utah.San Juan", "New Mexico.San Juan", "New Mexico.Mckinley", "Arizona.Navajo","Arizona.Apache","Arizona.Coconino")
 # plot(cases~date, county, pch=16, cex=.5, log="y")
 # points(cases~date, county[grep("Montezuma", county$county), ], pch=3, col="red")
 # legend("topleft", legend=c("all counties", "Montezuma County"), pch=c(16, 3), pt.cex=c(.5,1), col=c("black","red"))
@@ -95,8 +95,14 @@ countysums$time.to.10[which(countysums$time.to.10==Inf)] <- NA
 countysums$time.to.50[which(countysums$time.to.50==Inf)] <- NA
 countysums$time.to.10.deaths[which(countysums$time.to.10.deaths==Inf)] <- NA
 # 
-#countysums %>% group_by(early.deaths) %>% summarise(mean.time.to.10 = mean(time.to.10, na.rm = T), median.time.to.10 = median(time.to.10, na.rm = T),mean.time.to.50 = mean(time.to.50, na.rm = T))
+countysums %>% group_by(early.deaths) %>% summarise(mean.time.to.10 = mean(time.to.10, na.rm = T), median.time.to.10 = median(time.to.10, na.rm = T),mean.time.to.50 = mean(time.to.50, na.rm = T))
 ```
+
+``` {r summary tables}
+
+
+```
+
 
 ``` {r raw cases, basic time, warning=F, echo=F}
 
@@ -315,7 +321,7 @@ Doing the same thing for deaths rather than cases, we see that, thankfully, we d
 ### TRACK YOUR STATE
 And last but not least, we can look at state totals just for fun (though the NYT does a better job visualizing this)
 ```{r states, include=F}
-my.states <- c("California","Utah","Colorado", "Oregon")
+my.states <- c("California","Utah","Colorado", "Oregon","Florida")
 state <- read.csv(paste0(gsub(pattern = "/covid-analysis",replacement="", getwd()),"/covid-19-data/us-states.csv"))
 state$date <- base::as.Date(state$date)
 tmp <- state %>% group_by(state) %>% mutate(
@@ -416,3 +422,16 @@ legend('topleft', legend=c("all states",gsub(".*\\.","",my.states)), lwd=c(1,rep
 
 
 No states really seem to be peaking and falling off of the exponential growth phase yet... 
+
+
+
+
+
+
+
+``` {r totals}
+plot(max.cases~max.deaths, countysums[which(countysums$state %in% c("Colorado","Utah","New Mexico", "Arizona")),], pch=16, col=state)
+
+tmp <- countysums[which(countysums$state %in% c("Colorado","Utah","New Mexico", "Arizona")),] %>% arrange(max.cases)
+tmp[which(tmp$state.county %in% my.counties),]
+```
