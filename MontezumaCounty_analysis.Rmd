@@ -6,10 +6,6 @@ output: html_document
 ---
 
 Figures made from NYT county-level and state-level aggregated data
-Most recent data: 
-```{r date}
-print(Sys.Date()-1)
-```
 Data repository: https://github.com/nytimes/covid-19-data
 
 
@@ -33,6 +29,10 @@ county <- read.csv(paste0(gsub(pattern = "/covid-analysis",replacement="", getwd
 county$date <- base::as.Date(county$date)
 county$state.county <- paste(county$state, county$county, sep=".")
 
+```
+Most recent data: 
+```{r date}
+print(max(county$date))
 ```
 
 ## Raw Cases
