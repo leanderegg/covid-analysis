@@ -6,7 +6,11 @@ output: html_document
 ---
 
 Figures made from NYT county-level and state-level aggregated data
-Most recent data: 04/08/2020
+Most recent data: 
+```{r date}
+print(Sys.Date()-1)
+```
+Data repository: https://github.com/nytimes/covid-19-data
 
 
 ```{r setup, include=FALSE}
@@ -16,10 +20,11 @@ require(dplyr)
 require(stringr)
 require(RColorBrewer)
 require(zoo)
+library(knitr)
 mypal <- c(brewer.pal(n=9, "Set1"), brewer.pal(n=8, "Dark2"))
 ```
 
-```{r import data}
+```{r import data, echo=F}
   # Note: you need to have the NYT 'covid-19-data' directory in the same parent directory that you're storing the 'covid-analysis' directory that this file is in. otherwise, comment this bit out and input the desired path in the version right below it
 county <- read.csv(paste0(gsub(pattern = "/covid-analysis",replacement="", getwd()),"/covid-19-data/us-counties.csv"))
 # if specifying path
@@ -39,7 +44,8 @@ NYC dwarfs pretty much everywhere in raw number of cases. It goes waaaaay of the
 ``` {r find similar counties, include=F}
 bad.counties <- unique(county$state.county[which(county$cases<= 10 & county$deaths>1)])
 
-my.counties <- c("Colorado.Mesa", "California.Santa Clara", "Colorado.La Plata", "Oregon.Lane", "California.San Mateo", "Utah.San Juan", "New Mexico.San Juan", "New Mexico.Mckinley", "Arizona.Navajo","Arizona.Apache","Arizona.Coconino")
+my.counties <- c("Colorado.Mesa", "California.Santa Clara", "Colorado.La Plata", "Oregon.Lane","Arizona.Maricopa", "California.Alameda", "New Mexico.San Juan", "Arizona.Navajo")
+all.my.counties <- c("Colorado.Montezuma","Colorado.Mesa","Colorado.La Plata", "Oregon.Lane", "Arizona.Maricopa","California.Santa Clara", "California.San Mateo","California.Alemeda","California.Contra Costa", "Utah.Salt Lake", "Utah.San Juan", "New Mexico.San Juan", "New Mexico.Mckinley", "Arizona.Navajo","Arizona.Apache","Arizona.Coconino", "Colorado.Conejos")
 # plot(cases~date, county, pch=16, cex=.5, log="y")
 # points(cases~date, county[grep("Montezuma", county$county), ], pch=3, col="red")
 # legend("topleft", legend=c("all counties", "Montezuma County"), pch=c(16, 3), pt.cex=c(.5,1), col=c("black","red"))
@@ -94,11 +100,21 @@ countysums$early.deaths <- factor(countysums$early.deaths)
 countysums$time.to.10[which(countysums$time.to.10==Inf)] <- NA
 countysums$time.to.50[which(countysums$time.to.50==Inf)] <- NA
 countysums$time.to.10.deaths[which(countysums$time.to.10.deaths==Inf)] <- NA
-# 
-countysums %>% group_by(early.deaths) %>% summarise(mean.time.to.10 = mean(time.to.10, na.rm = T), median.time.to.10 = median(time.to.10, na.rm = T),mean.time.to.50 = mean(time.to.50, na.rm = T))
+# # 
+# countysums %>% group_by(early.deaths) %>% summarise(mean.time.to.10 = mean(time.to.10, na.rm = T), median.time.to.10 = median(time.to.10, na.rm = T),mean.time.to.50 = mean(time.to.50, na.rm = T))
 ```
 
-``` {r summary tables}
+``` {r summary tables, echo=F, warning=F}
+tmp.for.sums <- growing[which(growing$state.county %in% all.my.counties & growing$date > (max(growing$date)- 7)),]
+
+my.county.sums <- tmp.for.sums %>% group_by(state, county) %>% summarise(cases = max(cases), deaths = max(deaths), avg.case.perday = round(mean(new.cases.4avg, na.rm=T),1), avg.death.perday=round(mean(new.deaths.4avg, na.rm=T),1), time.since.first.case = max(time.since.first, na.rm=T))
+kable(my.county.sums)
+# growth.rate <- rep(NA, length(unique(tmp.for.sums$state.county)))
+# for(i in 1:length(unique(tmp.for.sums$state.county))){
+#   tmp.count <- tmp.for.sums[which(tmp.for.sums$state.county==unique(tmp.for.sums$state.county)[i]),]
+#   growth.rate[i] <- round(lm(cases~date, tmp.count)$coefficients["date"],1)
+# }
+
 
 
 ```
@@ -185,7 +201,7 @@ If we standardize things by the time when the first case was reported, we can co
 We can also see the 'exponential growth' trajectories by looking just at the number of new cases rather than total cases:
 
 
-```{r the CURVE standardized by first case, echo=F, warning=F}
+```{r the CURVE standardized by first case, echo=F, warning=FALSE}
 par(mar=c(4,4,1,1))
 plot(new.cases.4avg~time.since.first, growing, type="n",log="y", ylab="4 day avg new cases", xlab="days since first case")
 for(i in unique(growing$state.county[which(!growing$state.county %in% bad.counties)])){
@@ -236,7 +252,55 @@ legend("topright", legend=c("3 days", "7 days"), lty=c(2,3),title = "Doubling Ti
 
 Same curves but standardized to plot versus days since first case or days since 10th case. a few counties look like they're peaking? But really hard to say. Let's look at a different way of assessing this:
 
+***Looking at raw (unlogged) growth rates*** 
+All of our coutnies (except perhaps Maricopa) seem to be doing better than many. Growth rates still need to go DOWN before things can get better, but we've evidently escaped the most viscious exponential growth (e.g. following the 'doubling ever 3 days' trajectory)
 
+```{r the CURVE standardized by first case unlogged, echo=F, warning=FALSE}
+# par(mar=c(4,4,1,1))
+# plot(new.cases.4avg~time.since.first, growing, type="n",log="y", ylab="4 day avg new cases", xlab="days since first case")
+# for(i in unique(growing$state.county[which(!growing$state.county %in% bad.counties)])){
+#   lines(new.cases.4avg~time.since.first, growing[which(growing$state.county==i),], col="#AAAAAA66")
+# }
+# for(i in unique(growing$state.county[which(growing$state.county %in% bad.counties)])){
+#   lines(new.cases.4avg~time.since.first, growing[which(growing$state.county==i),], col=paste0(mypal[1],"66"))
+# }
+# # plot counties of interest
+# for(j in 1:length(my.counties)){
+#   lines(new.cases.4avg~time.since.first, growing[which(growing$state.county==my.counties[j]),], col=mypal[1+j], lwd=3)
+# }
+# # Montezuma County
+# points(new.cases.4avg~time.since.first, growing[which(growing$county=="Montezuma"),], pch=3, lwd=2, type="b")
+# 
+# legend('bottomright', legend=c("all counties","early deaths","Montezuma",gsub(".*\\.","",my.counties)), lwd=c(1,1,2,rep(2, length(my.counties))), pch=c(NA,NA,3,NA,NA), col=c("#AAAAAA66", mypal[1],"black", mypal[2:(length(my.counties)+1)]), ncol=2, cex=.95)
+# x <- 1:80
+# lines(exp(.2333*x)~x, lty=2)
+# lines(exp(.10*x)~x, lty=3)
+# legend("topright", legend=c("3 days", "7 days"), lty=c(2,3),title = "Doubling Time", horiz=T, bty="n")
+
+
+
+
+plot(new.cases.4avg~time.since.tenth, growing, type="n", ylab="4 day avg new cases", xlab="days since 10th case", xlim=c(0,40), ylim=c(0,400))
+for(i in unique(growing$state.county[which(!growing$state.county %in% bad.counties)])){
+  lines(new.cases.4avg~time.since.tenth, growing[which(growing$state.county==i),], col="#AAAAAA66")
+}
+for(i in unique(growing$state.county[which(growing$state.county %in% bad.counties)])){
+  lines(new.cases.4avg~time.since.tenth, growing[which(growing$state.county==i),], col=paste0(mypal[1],"66"))
+}
+# plot counties of interest
+for(j in 1:length(my.counties)){
+  lines(new.cases.4avg~time.since.tenth, growing[which(growing$state.county==my.counties[j]),], col=mypal[1+j], lwd=3)
+}
+# Montezuma County
+points(new.cases.4avg~time.since.tenth, growing[which(growing$county=="Montezuma"),], pch=3, lwd=2, type="b")
+
+legend('topleft', legend=c("all counties","early deaths","Montezuma",gsub(".*\\.","",my.counties)), lwd=c(1,1,2,rep(2, length(my.counties))), pch=c(NA,NA,3,NA,NA), col=c("#AAAAAA66", mypal[1],"black", mypal[2:(length(my.counties)+1)]), ncol=2)
+x <- 1:80
+lines(exp(.2333*x)~x, lty=2)
+lines(exp(.10*x)~x, lty=3)
+legend("topright", legend=c("3 days", "7 days"), lty=c(2,3),title = "Doubling Time", horiz=T, bty="n")
+
+```
 
 
 ## 'THE CURVE' 
@@ -321,7 +385,7 @@ Doing the same thing for deaths rather than cases, we see that, thankfully, we d
 ### TRACK YOUR STATE
 And last but not least, we can look at state totals just for fun (though the NYT does a better job visualizing this)
 ```{r states, include=F}
-my.states <- c("California","Utah","Colorado", "Oregon","Florida")
+my.states <- c("California","Utah","Colorado", "Oregon","Florida", "New Jersey","Michigan","Pennsylvania")
 state <- read.csv(paste0(gsub(pattern = "/covid-analysis",replacement="", getwd()),"/covid-19-data/us-states.csv"))
 state$date <- base::as.Date(state$date)
 tmp <- state %>% group_by(state) %>% mutate(
@@ -384,7 +448,7 @@ for(j in 1:length(my.states)){
   lines(new.cases.4avg~time.since.first, state.growing[which(state.growing$state==my.states[j]),], col=mypal[1+j], lwd=3)
 }
 
-legend('topleft', legend=c("all states",gsub(".*\\.","",my.states)), lwd=c(1,rep(2, length(my.states))), col=c("#AAAAAA66", mypal[2:(length(my.states)+1)]))
+legend('bottomright', legend=c("all states",gsub(".*\\.","",my.states)), lwd=c(1,rep(2, length(my.states))), col=c("#AAAAAA66", mypal[2:(length(my.states)+1)]))
 
 
 
@@ -399,7 +463,7 @@ for(j in 1:length(my.states)){
   lines(new.cases.4avg~time.since.tenth, state.growing[which(state.growing$state==my.states[j]),], col=mypal[1+j], lwd=3)
 }
 
-legend('topleft', legend=c("all states",gsub(".*\\.","",my.states)), lwd=c(1,rep(2, length(my.states))), col=c("#AAAAAA66", mypal[2:(length(my.states)+1)]))
+legend('bottomright', legend=c("all states",gsub(".*\\.","",my.states)), lwd=c(1,rep(2, length(my.states))), col=c("#AAAAAA66", mypal[2:(length(my.states)+1)]))
 
 ```
 
@@ -429,9 +493,9 @@ No states really seem to be peaking and falling off of the exponential growth ph
 
 
 
-``` {r totals}
-plot(max.cases~max.deaths, countysums[which(countysums$state %in% c("Colorado","Utah","New Mexico", "Arizona")),], pch=16, col=state)
-
-tmp <- countysums[which(countysums$state %in% c("Colorado","Utah","New Mexico", "Arizona")),] %>% arrange(max.cases)
-tmp[which(tmp$state.county %in% my.counties),]
+``` {r totalsm, echo=F}
+# plot(max.cases~max.deaths, countysums[which(countysums$state %in% c("Colorado","Utah","New Mexico", "Arizona")),], pch=16, col=state)
+# 
+# tmp <- countysums[which(countysums$state %in% c("Colorado","Utah","New Mexico", "Arizona")),] %>% arrange(max.cases)
+# tmp[which(tmp$state.county %in% my.counties),]
 ```
