@@ -385,7 +385,7 @@ Doing the same thing for deaths rather than cases, we see that, thankfully, we d
 ### TRACK YOUR STATE
 And last but not least, we can look at state totals just for fun (though the NYT does a better job visualizing this)
 ```{r states, include=F}
-my.states <- c("California","Utah","Colorado", "Oregon","Florida", "New Jersey","Michigan","Pennsylvania")
+my.states <- c("California","Utah","Colorado", "Oregon","Florida", "New Jersey","Michigan","")
 state <- read.csv(paste0(gsub(pattern = "/covid-analysis",replacement="", getwd()),"/covid-19-data/us-states.csv"))
 state$date <- base::as.Date(state$date)
 tmp <- state %>% group_by(state) %>% mutate(
