@@ -8,6 +8,7 @@ output: html_document
 Figures made from NYT county-level and state-level aggregated data
 Data repository: https://github.com/nytimes/covid-19-data
 
+to pull from master: git pull upstream master
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -385,7 +386,7 @@ Doing the same thing for deaths rather than cases, we see that, thankfully, we d
 ### TRACK YOUR STATE
 And last but not least, we can look at state totals just for fun (though the NYT does a better job visualizing this)
 ```{r states, include=F}
-my.states <- c("California","Utah","Colorado", "Oregon","Florida", "New Jersey","Michigan","")
+my.states <- c("California","Utah","Colorado", "Oregon","Florida", "New Jersey","Michigan","Arizona")
 state <- read.csv(paste0(gsub(pattern = "/covid-analysis",replacement="", getwd()),"/covid-19-data/us-states.csv"))
 state$date <- base::as.Date(state$date)
 tmp <- state %>% group_by(state) %>% mutate(
@@ -413,7 +414,26 @@ state.growing$time.since.tenth <- state.growing$date - state.growing$tenth.case
 state.growing$time.since.tenth[which(state.growing$time.since.tenth<0)] <- NA
 
 statesums <- state.growing[which(state.growing$max.cases>=10),] %>% group_by(state, max.cases, max.deaths) %>% summarise( time.to.50 = min(time.since.first[which(cases>= 50)]), time.to.10 = min(time.since.first[which(cases>= 10)]), time.to.10.deaths = min(time.since.first[which(deaths>= 10)]) )
+statesums$population <- state.cap$population[match(statesums$state, state.cap$Location)]
+statesums$Beds <- state.cap$Total_Beds[match(statesums$state, state.cap$Location)]
+statesums$Beds_p10k <- state.cap$Beds_per_10k[match(statesums$state, state.cap$Location)]
+statesums$ICU <- state.cap$ICU_Beds[match(statesums$state, state.cap$Location)]
+statesums$ICU_p10k <- state.cap$ICU_Beds_per_10k[match(statesums$state, state.cap$Location)]
 
+
+state.cap <- read.csv(file = "demog_data/Kaiser_HospitalCapacity.csv") %>% arrange(Location)
+state.cap$population <- with(state.cap, Total_Beds *10000/Beds_per_10k)
+
+state.growing$population <- state.cap$population[match(state.growing$state, state.cap$Location)]
+state.growing$Beds <- state.cap$Total_Beds[match(state.growing$state, state.cap$Location)]
+state.growing$Beds_p10k <- state.cap$Beds_per_10k[match(state.growing$state, state.cap$Location)]
+state.growing$ICU <- state.cap$ICU_Beds[match(state.growing$state, state.cap$Location)]
+state.growing$ICU_p10k <- state.cap$ICU_Beds_per_10k[match(state.growing$state, state.cap$Location)]
+# double check populations with other source. looks good
+# state.pop <- read.csv(file="demog_data/2018Population_by_age_gender.csv")
+# tot.pop <- state.pop %>% filter(Gender=="Total" & Age=="Total" & !LocationDesc %in% c("Puerto Rico", "United States (States and DC)") & YEAR==2017) %>% arrange(LocationAbbr)
+# 
+# tot.pop$pop1 <- state.cap$pop1[match(tot.pop$LocationDesc, state.cap$Location)]
 ```
 
 
