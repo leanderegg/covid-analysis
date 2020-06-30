@@ -45,8 +45,12 @@ NYC dwarfs pretty much everywhere in raw number of cases. It goes waaaaay of the
 ``` {r find similar counties, include=F}
 bad.counties <- unique(county$state.county[which(county$cases<= 10 & county$deaths>1)])
 
-my.counties <- c("Colorado.Mesa", "California.Santa Clara", "Colorado.La Plata", "Oregon.Lane","Arizona.Maricopa", "California.Alameda", "New Mexico.San Juan", "Arizona.Navajo")
+my.counties <- c("Colorado.Mesa", "California.Santa Clara", "Colorado.La Plata", "Oregon.Lane","Utah.Salt Lake", "California.Alameda", "New Mexico.San Juan", "Arizona.Navajo", "Colorado.Dolores")
 all.my.counties <- c("Colorado.Montezuma","Colorado.Mesa","Colorado.La Plata", "Oregon.Lane", "Arizona.Maricopa","California.Santa Clara", "California.San Mateo","California.Alemeda","California.Contra Costa", "Utah.Salt Lake", "Utah.San Juan", "New Mexico.San Juan", "New Mexico.Mckinley", "Arizona.Navajo","Arizona.Apache","Arizona.Coconino", "Colorado.Conejos")
+ca_counties <- c("California.Santa Clara","California.Alameda","California.San Mateo", "California.Contra Costa")
+or_counties <- c("Oregon.Lane", "Oregon.Linn", "Oregon.Multnomah")
+co_counties <- c("Colorado.Montezuma","Colorado.Mesa","Colorado.La Plata","New Mexico.San Juan", "Arazona.Navajo")
+ut_counties <- c("Utah.Salt Lake")
 # plot(cases~date, county, pch=16, cex=.5, log="y")
 # points(cases~date, county[grep("Montezuma", county$county), ], pch=3, col="red")
 # legend("topleft", legend=c("all counties", "Montezuma County"), pch=c(16, 3), pt.cex=c(.5,1), col=c("black","red"))
@@ -109,7 +113,7 @@ countysums$time.to.10.deaths[which(countysums$time.to.10.deaths==Inf)] <- NA
 tmp.for.sums <- growing[which(growing$state.county %in% all.my.counties & growing$date > (max(growing$date)- 7)),]
 
 my.county.sums <- tmp.for.sums %>% group_by(state, county) %>% summarise(cases = max(cases), deaths = max(deaths), avg.case.perday = round(mean(new.cases.4avg, na.rm=T),1), avg.death.perday=round(mean(new.deaths.4avg, na.rm=T),1), time.since.first.case = max(time.since.first, na.rm=T))
-kable(my.county.sums)
+# kable(my.county.sums)
 # growth.rate <- rep(NA, length(unique(tmp.for.sums$state.county)))
 # for(i in 1:length(unique(tmp.for.sums$state.county))){
 #   tmp.count <- tmp.for.sums[which(tmp.for.sums$state.county==unique(tmp.for.sums$state.county)[i]),]
@@ -246,6 +250,28 @@ x <- 1:80
 lines(exp(.2333*x)~x, lty=2)
 lines(exp(.10*x)~x, lty=3)
 legend("topright", legend=c("3 days", "7 days"), lty=c(2,3),title = "Doubling Time", horiz=T, bty="n")
+
+
+
+
+par(mfrow=c(1,2))
+p <- plot(new.cases.4avg~time.since.tenth, growing[grep("Colorado",growing$state),], type="n",log="y", ylab="4 day avg new cases", xlab="days since 10th case", main="Colorado")
+for(i in unique(growing$state.county[grep("Colorado",growing$state)])){
+  lines(new.cases.4avg~time.since.tenth, growing[which(growing$state.county==i),], col="#AAAAAA66")
+}
+
+# plot counties of interest
+for(j in 1:length(co_counties)){
+  lines(new.cases.4avg~time.since.tenth, growing[which(growing$state.county==co_counties[j]),], col=mypal[j], lwd=3)
+}
+# Montezuma County
+legend(x=par("usr")[3], y= par("usr")[2] + par("usr")[2], legend=c(gsub(".*\\.","",co_counties)), lwd=2, col=c(mypal[1:(length(my.counties)+1)]), ncol=length(co_counties)/2, xpd=NA)
+x <- 1:80
+lines(exp(.2333*x)~x, lty=2)
+lines(exp(.10*x)~x, lty=3)
+legend("topright", legend=c("3 days", "7 days"), lty=c(2,3),title = "Doubling Time", horiz=T, bty="n")
+
+
 
 ```
 
@@ -386,9 +412,10 @@ Doing the same thing for deaths rather than cases, we see that, thankfully, we d
 ### TRACK YOUR STATE
 And last but not least, we can look at state totals just for fun (though the NYT does a better job visualizing this)
 ```{r states, include=F}
-my.states <- c("California","Utah","Colorado", "Oregon","Florida", "New Jersey","Michigan","Arizona")
+my.states <- c("California","Utah","Colorado", "Arizona","Florida", "New York")
 state <- read.csv(paste0(gsub(pattern = "/covid-analysis",replacement="", getwd()),"/covid-19-data/us-states.csv"))
 state$date <- base::as.Date(state$date)
+#state$deaths[which(state$state=="New Jersey" & state$date=="2020-06-25")] # NY added 'probable deaths'
 tmp <- state %>% group_by(state) %>% mutate(
   new.cases = c(NA,diff(cases, differences=1))
   , new.deaths = c(NA,diff(deaths, differences=1))
@@ -413,6 +440,54 @@ state.growing$cases.since.min <- state.growing$cases - state.growing$min.cases
 state.growing$time.since.tenth <- state.growing$date - state.growing$tenth.case
 state.growing$time.since.tenth[which(state.growing$time.since.tenth<0)] <- NA
 
+
+state.cap <- read.csv(file = "./demog_data/Kaiser_HospitalCapacity.csv") %>% arrange(Location)
+state.cap$population <- with(state.cap, Total_Beds *10000/Beds_per_10k)
+
+state.growing$population <- state.cap$population[match(state.growing$state, state.cap$Location)]
+state.growing$Beds <- state.cap$Total_Beds[match(state.growing$state, state.cap$Location)]
+state.growing$Beds_p10k <- state.cap$Beds_per_10k[match(state.growing$state, state.cap$Location)]
+state.growing$ICU <- state.cap$ICU_Beds[match(state.growing$state, state.cap$Location)]
+state.growing$ICU_p10k <- state.cap$ICU_Beds_per_10k[match(state.growing$state, state.cap$Location)]
+state.growing$cases_p10k <- state.growing$cases/state.growing$population*10000
+state.growing$new.cases.4avg_p10k <- state.growing$new.cases.4avg/state.growing$population*10000
+state.growing$deaths_p10k <- state.growing$deaths/state.growing$population*10000
+state.growing$new.deaths.4avg_p10k <- state.growing$new.deaths.4avg/state.growing$population*10000
+state.growing$new.cases.4avg_pICU <- state.growing$new.cases.4avg/state.growing$ICU
+
+
+CA <- state.growing[which(state.growing$state=="California"),]
+BA.c <- growing[which(growing$county %in% c("Santa Clara","San Mateo","San Francisco","Alameda","Contra Costa","Marin")),]
+BA <- BA.c %>% group_by(date) %>% summarise(cases = sum(cases, na.rm=T),
+                                            deaths = sum(deaths, na.rm=T),
+                                            new.cases.4avg =sum(new.cases.4avg, na.rm=T),
+                                            new.deaths.4avg = sum(new.deaths.4avg, na.rm=T))
+
+
+ba.pop <- 7750000-184000-137000-448000 # estimate bay area pop from wikipedia 7.75mil minus sonoma, solano, santa clara county
+BA$cases_p10k <- BA$cases/ba.pop*10000
+BA$new.cases.4avg_p10k <- BA$new.cases.4avg/ba.pop*10000
+BA$deaths_p10k <- BA$deaths/ba.pop*10000
+BA$new.deaths.4avg_p10k <- BA$new.deaths.4avg/ba.pop*10000
+
+
+
+ca.county.pop <- read.csv("demog_data/CA_county_pop.csv")
+ca.county.pop$county <- str_remove(ca.county.pop$CTYNAME, pattern = " County")
+ca.county <- growing[which(growing$state=="California"),]
+ca.county$population <- ca.county.pop$Pop[match(ca.county$county, ca.county.pop$county)]
+
+
+
+ca.county$cases_p10k <- ca.county$cases/ca.county$population*10000
+ca.county$new.cases.4avg_p10k <- ca.county$new.cases.4avg/ca.county$population*10000
+ca.county$deaths_p10k <- ca.county$deaths/ca.county$population*10000
+ca.county$new.deaths.4avg_p10k <- ca.county$new.deaths.4avg/ca.county$population*10000
+
+
+
+
+
 statesums <- state.growing[which(state.growing$max.cases>=10),] %>% group_by(state, max.cases, max.deaths) %>% summarise( time.to.50 = min(time.since.first[which(cases>= 50)]), time.to.10 = min(time.since.first[which(cases>= 10)]), time.to.10.deaths = min(time.since.first[which(deaths>= 10)]) )
 statesums$population <- state.cap$population[match(statesums$state, state.cap$Location)]
 statesums$Beds <- state.cap$Total_Beds[match(statesums$state, state.cap$Location)]
@@ -421,20 +496,39 @@ statesums$ICU <- state.cap$ICU_Beds[match(statesums$state, state.cap$Location)]
 statesums$ICU_p10k <- state.cap$ICU_Beds_per_10k[match(statesums$state, state.cap$Location)]
 
 
-state.cap <- read.csv(file = "demog_data/Kaiser_HospitalCapacity.csv") %>% arrange(Location)
-state.cap$population <- with(state.cap, Total_Beds *10000/Beds_per_10k)
 
-state.growing$population <- state.cap$population[match(state.growing$state, state.cap$Location)]
-state.growing$Beds <- state.cap$Total_Beds[match(state.growing$state, state.cap$Location)]
-state.growing$Beds_p10k <- state.cap$Beds_per_10k[match(state.growing$state, state.cap$Location)]
-state.growing$ICU <- state.cap$ICU_Beds[match(state.growing$state, state.cap$Location)]
-state.growing$ICU_p10k <- state.cap$ICU_Beds_per_10k[match(state.growing$state, state.cap$Location)]
 # double check populations with other source. looks good
 # state.pop <- read.csv(file="demog_data/2018Population_by_age_gender.csv")
 # tot.pop <- state.pop %>% filter(Gender=="Total" & Age=="Total" & !LocationDesc %in% c("Puerto Rico", "United States (States and DC)") & YEAR==2017) %>% arrange(LocationAbbr)
 # 
 # tot.pop$pop1 <- state.cap$pop1[match(tot.pop$LocationDesc, state.cap$Location)]
 ```
+
+
+``` {r Bay Area per capita}
+
+quartz(width=6, height=3.5)
+jpeg(paste0("BayARea_percaptia_",max(state.growing$date),".jpg"),width = 6, height=3.5, units = "in", res = 600)
+par(mfrow=c(1,2), mar=c(3.5,3.5,1,1), mgp=c(2,1,0))
+plot(new.cases.4avg~date, CA, type="l", lwd=3, ylab="New Cases (4 day avg)")
+lines(new.cases.4avg~date, BA, col="blue", lwd=2)
+legend("topleft", legend=c("CA total","Bay Area"), lwd=c(3,2), col=c("black","blue"))
+plot(new.cases.4avg_p10k~date, ca.county[which(ca.county$population>80000),], type="n", lwd=3, ylab="New Cases per 10k pop", ylim=c(0,3))
+for(i in unique(ca.county$county[which(ca.county$population>80000)])){
+  lines(new.cases.4avg_p10k~date, ca.county[which(ca.county$county==i),], col="#66666666")
+}
+lines(new.cases.4avg_p10k~date, ca.county[which(ca.county$county=="Los Angeles"),], col="red")
+for(i in c("Marin","San Francisco","San Mateo","Santa Clara", "Alameda","Contra Costa")){
+  lines(new.cases.4avg_p10k~date, ca.county[which(ca.county$county==i),], col="#4DAF4A") #"#377EB866")
+}
+lines(new.cases.4avg_p10k~date, CA, lwd=3)
+lines(new.cases.4avg_p10k~date, BA, col="blue", lwd=3)
+legend("topleft", legend=c("all counties","LA County", "Bay Counties"), lwd=1, col=c("#66666666","red","#4DAF4A"), cex=.8)
+quartz.save("CA_BayArea_comparison_June20v2.png", dpi=300)
+
+
+```
+
 
 
 ``` {r state curves, warning=FALSE, echo=FALSE}
@@ -451,6 +545,95 @@ for(j in 1:length(my.states)){
 
 legend('topleft', legend=c("all states",gsub(".*\\.","",my.states)), lwd=c(1,rep(2, length(my.states))), col=c("#AAAAAA66", mypal[2:(length(my.states)+1)]))
 ```
+
+
+
+
+
+``` {r state curves per capita, warning=FALSE, echo=FALSE}
+
+plot(new.cases.4avg_p10k~date, state.growing, type="n", ylab="4 day avg new cases", main="New Cases over time")
+for(i in unique(state.growing$state)){
+  lines(new.cases.4avg_p10k~date, state.growing[which(state.growing$state==i),], col="#AAAAAA66")
+}
+
+# plot counties of interest
+for(j in 1:length(my.states)){
+  lines(new.cases.4avg_p10k~date, state.growing[which(state.growing$state==my.states[j]),], col=mypal[1+j], lwd=3)
+}
+
+legend('topleft', legend=c("all states",gsub(".*\\.","",my.states)), lwd=c(1,rep(2, length(my.states))), col=c("#AAAAAA66", mypal[2:(length(my.states)+1)]))
+```
+
+``` {r state curves deathes per capita, warning=FALSE, echo=FALSE}
+
+plot(new.deaths.4avg_p10k~date, state.growing, type="n", ylab="4 day avg new cases", main="New Cases over time")
+for(i in unique(state.growing$state)){
+  lines(new.deaths.4avg_p10k~date, state.growing[which(state.growing$state==i),], col="#AAAAAA66")
+}
+
+# plot counties of interest
+for(j in 1:length(my.states)){
+  lines(new.deaths.4avg_p10k~date, state.growing[which(state.growing$state==my.states[j]),], col=mypal[1+j], lwd=3)
+}
+
+legend('topleft', legend=c("all states",gsub(".*\\.","",my.states)), lwd=c(1,rep(2, length(my.states))), col=c("#AAAAAA66", mypal[2:(length(my.states)+1)]))
+```
+``` {r state curves per ICU bed}
+
+plot(new.cases.4avg_pICU~date, state.growing, type="n", ylab="4 day avg new cases", main="New Cases over time")
+for(i in unique(state.growing$state)){
+  lines(new.cases.4avg_pICU~date, state.growing[which(state.growing$state==i),], col="#AAAAAA66")
+}
+
+# plot counties of interest
+for(j in 1:length(my.states)){
+  lines(new.cases.4avg_pICU~date, state.growing[which(state.growing$state==my.states[j]),], col=mypal[1+j], lwd=3)
+}
+
+legend('topleft', legend=c("all states",gsub(".*\\.","",my.states)), lwd=c(1,rep(2, length(my.states))), col=c("#AAAAAA66", mypal[2:(length(my.states)+1)]))
+```
+
+
+``` {r where are we headed?, warning=FALSE, echo=FALSE}
+
+#quartz(width=6, height=6)
+jpeg(paste0("State_percaptia_",max(state.growing$date),".jpg"),width = 6, height=6, units = "in", res = 600)
+par(mfrow=c(2,1), mar=c(3,4,1,1))
+plot(new.cases.4avg_p10k~date, state.growing, type="n", ylab="Cases per 10k pop", main="New Cases")
+for(i in unique(state.growing$state)){
+  lines(new.cases.4avg_p10k~date, state.growing[which(state.growing$state==i),], col="#AAAAAA66")
+}
+
+# plot counties of interest
+for(j in 1:length(my.states)){
+  lines(new.cases.4avg_p10k~date, state.growing[which(state.growing$state==my.states[j]),], col=mypal[1+j], lwd=3)
+}
+
+legend('topleft', legend=c("all states",gsub(".*\\.","",my.states)), lwd=c(1,rep(2, length(my.states))), col=c("#AAAAAA66", mypal[2:(length(my.states)+1)]))
+
+
+
+plot(new.deaths.4avg_p10k~date, state.growing, type="n", ylab="Deaths per 10k pop", main="New Deaths", xlim=c(min(state.growing$date)+21, max(state.growing$date + 21)))
+for(i in unique(state.growing$state)){
+  lines(new.deaths.4avg_p10k~date, state.growing[which(state.growing$state==i),], col="#AAAAAA66")
+}
+
+# plot counties of interest
+for(j in 1:length(my.states)){
+  lines(new.deaths.4avg_p10k~date, state.growing[which(state.growing$state==my.states[j]),], col=mypal[1+j], lwd=3)
+}
+text(x=as.Date("2020-07-01"),y=.2, labels="Deaths = 4wk\nlagging indicator")
+lines(y=c(.1,.1), x=c(max(state.growing$date), as.Date("2020-07-24")), lwd=3)
+arrows(y0=c(.55, .4), x0 = as.Date(c("2020-05-05", "2020-07-02")), y1=c(0.5, 0.5), x1=as.Date(c("2020-04-15","2020-07-24")), lwd=3, length=0.1)
+text(x = as.Date(c("2020-05-30", "2020-06-10")),y=c(.55, .4),labels=c("New York in Apr", "Arizona in Aug?"), col=mypal[c(7,5)])
+dev.off()
+```
+
+
+
+
+
 
 
 **Same curves, but standardizing the time axis to put all counties on the same timeline:**
